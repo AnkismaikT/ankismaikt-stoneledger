@@ -28,35 +28,45 @@ export default async function AdminPage({
 
   const { data: leads, error } = await query;
 
-  // 🔥 FETCH ALL FOR METRICS
   const { data: allLeads } = await supabase.from("leads").select("*");
 
   const totalLeads = allLeads?.length || 0;
-  const buyerCount = allLeads?.filter(l => l.type === "buyer").length || 0;
-  const sellerCount = allLeads?.filter(l => l.type === "seller").length || 0;
-  const newCount = allLeads?.filter(l => l.status === "new").length || 0;
-  const matchedCount = allLeads?.filter(l => l.status === "matched").length || 0;
+  const buyerCount =
+    allLeads?.filter((l) => l.type === "buyer").length || 0;
+  const sellerCount =
+    allLeads?.filter((l) => l.type === "seller").length || 0;
+  const newCount =
+    allLeads?.filter((l) => l.status === "new").length || 0;
+  const matchedCount =
+    allLeads?.filter((l) => l.status === "matched").length || 0;
 
-  async function updateLeadStatus(formData: FormData) {
+  const { data: sellers } = await supabase
+    .from("leads")
+    .select("id, name")
+    .eq("type", "seller");
+
+  async function matchLead(formData: FormData) {
     "use server";
 
-    const id = formData.get("id") as string;
-    const status = formData.get("status") as string;
+    const buyerId = formData.get("buyer_id") as string;
+    const sellerId = formData.get("seller_id") as string;
 
     const supabase = createClient(
       process.env.SUPABASE_URL!,
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    await supabase.from("leads").update({ status }).eq("id", id);
+    await supabase
+      .from("leads")
+      .update({
+        matched_with: sellerId,
+        status: "matched",
+      })
+      .eq("id", buyerId);
   }
 
   if (error) {
-    return (
-      <div className="p-10 text-red-600">
-        Error loading leads: {error.message}
-      </div>
-    );
+    return <div className="p-10 text-red-600">Error: {error.message}</div>;
   }
 
   const activeType = searchParams?.type || "all";
@@ -67,15 +77,11 @@ export default async function AdminPage({
 
       {/* SIDEBAR */}
       <aside className="w-64 bg-slate-900 border-r border-slate-800 p-6">
-        <h2 className="text-xl font-bold mb-8">
-          StoneLedger CRM
-        </h2>
+        <h2 className="text-xl font-bold mb-8">StoneLedger CRM</h2>
 
         <div className="space-y-8">
           <div>
-            <p className="text-slate-400 text-xs uppercase tracking-wider mb-3">
-              Lead Type
-            </p>
+            <p className="text-slate-400 text-xs uppercase mb-3">Lead Type</p>
 
             <SidebarLink href="/admin" active={activeType === "all"}>
               All Leads
@@ -91,9 +97,7 @@ export default async function AdminPage({
           </div>
 
           <div>
-            <p className="text-slate-400 text-xs uppercase tracking-wider mb-3">
-              Status
-            </p>
+            <p className="text-slate-400 text-xs uppercase mb-3">Status</p>
 
             {["new", "contacted", "matched", "closed", "rejected"].map(
               (status) => (
@@ -110,26 +114,18 @@ export default async function AdminPage({
         </div>
       </aside>
 
-      {/* MAIN CONTENT */}
-      <div className="flex-1 p-10 bg-slate-950">
+      {/* MAIN */}
+      <div className="flex-1 p-10">
 
-        <h1 className="text-3xl font-bold mb-8">
-          Admin Dashboard
-        </h1>
+        <h1 className="text-3xl font-bold mb-8">Admin Dashboard</h1>
 
-        {/* 🔥 METRIC CARDS */}
+        {/* METRICS */}
         <div className="grid grid-cols-2 md:grid-cols-5 gap-6 mb-10">
-
           <MetricCard title="Total Leads" value={totalLeads} />
-
           <MetricCard title="Buyers" value={buyerCount} />
-
           <MetricCard title="Sellers" value={sellerCount} />
-
           <MetricCard title="New" value={newCount} />
-
           <MetricCard title="Matched" value={matchedCount} />
-
         </div>
 
         {/* TABLE */}
@@ -141,47 +137,84 @@ export default async function AdminPage({
                 <th className="p-4 text-left">Name</th>
                 <th className="p-4 text-left">Phone</th>
                 <th className="p-4 text-left">City</th>
-                <th className="p-4 text-left">Budget</th>
                 <th className="p-4 text-left">Status</th>
-                <th className="p-4 text-left">Created</th>
+                <th className="p-4 text-left">Match</th>
               </tr>
             </thead>
 
             <tbody>
               {leads?.map((lead) => (
-                <tr key={lead.id} className="border-t border-slate-800 hover:bg-slate-800 transition">
-                  <td className="p-4 capitalize">{lead.type}</td>
-                  <td className="p-4">{lead.name}</td>
-                  <td className="p-4">{lead.phone}</td>
-                  <td className="p-4">{lead.city || "-"}</td>
-                  <td className="p-4">{lead.budget || "-"}</td>
-
-                  <td className="p-4">
-                    <form action={updateLeadStatus} className="flex gap-2">
-                      <input type="hidden" name="id" value={lead.id} />
-                      <select
-                        name="status"
-                        defaultValue={lead.status || "new"}
-                        className="bg-slate-700 text-white px-2 py-1 rounded border border-slate-600 text-sm"
-                      >
-                        <option value="new">New</option>
-                        <option value="contacted">Contacted</option>
-                        <option value="matched">Matched</option>
-                        <option value="closed">Closed</option>
-                        <option value="rejected">Rejected</option>
-                      </select>
-
-                      <button
-                        type="submit"
-                        className="bg-emerald-600 hover:bg-emerald-700 px-3 py-1 rounded text-xs"
-                      >
-                        Save
-                      </button>
-                    </form>
+                <tr
+                  key={lead.id}
+                  className="border-t border-slate-800 hover:bg-slate-800 transition"
+                >
+                  <td className="p-4 capitalize">
+                    <Link href={`/admin/${lead.id}`} className="block">
+                      {lead.type}
+                    </Link>
                   </td>
 
                   <td className="p-4">
-                    {new Date(lead.created_at).toLocaleString()}
+                    <Link href={`/admin/${lead.id}`} className="block">
+                      {lead.name}
+                    </Link>
+                  </td>
+
+                  <td className="p-4">
+                    <Link href={`/admin/${lead.id}`} className="block">
+                      {lead.phone}
+                    </Link>
+                  </td>
+
+                  <td className="p-4">
+                    <Link href={`/admin/${lead.id}`} className="block">
+                      {lead.city || "-"}
+                    </Link>
+                  </td>
+
+                  <td className="p-4 capitalize">
+                    <Link href={`/admin/${lead.id}`} className="block">
+                      {lead.status}
+                    </Link>
+                  </td>
+
+                  <td className="p-4">
+                    {lead.type === "buyer" &&
+                    lead.status !== "matched" ? (
+                      <form action={matchLead} className="flex gap-2">
+                        <input
+                          type="hidden"
+                          name="buyer_id"
+                          value={lead.id}
+                        />
+
+                        <select
+                          name="seller_id"
+                          className="bg-slate-700 text-white px-2 py-1 rounded border border-slate-600 text-sm"
+                          required
+                        >
+                          <option value="">Select Seller</option>
+                          {sellers?.map((seller) => (
+                            <option key={seller.id} value={seller.id}>
+                              {seller.name}
+                            </option>
+                          ))}
+                        </select>
+
+                        <button
+                          type="submit"
+                          className="bg-blue-600 hover:bg-blue-700 px-3 py-1 rounded text-xs"
+                        >
+                          Match
+                        </button>
+                      </form>
+                    ) : lead.status === "matched" ? (
+                      <span className="text-emerald-400">
+                        Matched
+                      </span>
+                    ) : (
+                      "-"
+                    )}
                   </td>
                 </tr>
               ))}
@@ -194,7 +227,6 @@ export default async function AdminPage({
   );
 }
 
-/* SIDEBAR LINK */
 function SidebarLink({
   href,
   active,
@@ -207,7 +239,7 @@ function SidebarLink({
   return (
     <Link href={href}>
       <div
-        className={`px-4 py-2 mb-2 rounded-md cursor-pointer transition text-sm ${
+        className={`px-4 py-2 mb-2 rounded-md transition text-sm ${
           active
             ? "bg-emerald-600 text-white"
             : "text-slate-300 hover:bg-slate-800"
@@ -219,16 +251,19 @@ function SidebarLink({
   );
 }
 
-/* METRIC CARD */
-function MetricCard({ title, value }: { title: string; value: number }) {
+function MetricCard({
+  title,
+  value,
+}: {
+  title: string;
+  value: number;
+}) {
   return (
     <div className="bg-slate-900 border border-slate-800 rounded-lg p-5">
       <p className="text-slate-400 text-xs uppercase tracking-wide mb-2">
         {title}
       </p>
-      <p className="text-2xl font-bold text-white">
-        {value}
-      </p>
+      <p className="text-2xl font-bold text-white">{value}</p>
     </div>
   );
 }
