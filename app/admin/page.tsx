@@ -50,10 +50,15 @@ export default async function AdminPage({
   const matchedCount =
     allLeads?.filter((l) => l.status === "matched").length || 0;
 
+  /* ==============================
+     ONLY VERIFIED SELLERS
+  ============================== */
+
   const { data: sellers } = await supabase
     .from("leads")
     .select("id, name")
-    .eq("type", "seller");
+    .eq("type", "seller")
+    .eq("verification_status", "approved");
 
   /* ==============================
      MATCH + DEAL CREATION
@@ -76,7 +81,6 @@ export default async function AdminPage({
     const dealId =
       "SL-" + Math.random().toString(36).substring(2, 8).toUpperCase();
 
-    // Update buyer lead
     await supabase
       .from("leads")
       .update({
@@ -85,7 +89,6 @@ export default async function AdminPage({
       })
       .eq("id", buyerId);
 
-    // Create structured deal
     await supabase.from("deals").insert({
       deal_id: dealId,
       buyer_id: buyerId,
@@ -208,7 +211,8 @@ export default async function AdminPage({
 
                   <td className="p-4">
                     {lead.type === "buyer" &&
-                    lead.status !== "matched" ? (
+                    lead.status !== "matched" &&
+                    lead.verification_status === "approved" ? (
 
                       <form action={matchLead} className="flex flex-col gap-2">
 
@@ -219,7 +223,7 @@ export default async function AdminPage({
                           className="bg-slate-700 text-white px-2 py-1 rounded border border-slate-600 text-sm"
                           required
                         >
-                          <option value="">Select Seller</option>
+                          <option value="">Select Verified Seller</option>
                           {sellers?.map((seller) => (
                             <option key={seller.id} value={seller.id}>
                               {seller.name}
@@ -259,10 +263,19 @@ export default async function AdminPage({
                         </button>
                       </form>
 
+                    ) : lead.type === "buyer" &&
+                      lead.verification_status !== "approved" ? (
+
+                      <span className="text-red-400 text-xs">
+                        Buyer not verified
+                      </span>
+
                     ) : lead.status === "matched" ? (
+
                       <span className="text-emerald-400 font-semibold">
                         Deal Created
                       </span>
+
                     ) : (
                       "-"
                     )}

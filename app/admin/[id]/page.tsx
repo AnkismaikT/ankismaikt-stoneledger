@@ -43,7 +43,6 @@ export default async function LeadDetailPage({
 
   async function updateNotes(formData: FormData) {
     "use server";
-
     const notes = formData.get("notes") as string;
 
     const supabase = createClient(
@@ -51,16 +50,24 @@ export default async function LeadDetailPage({
       process.env.SUPABASE_SERVICE_ROLE_KEY!
     );
 
-    await supabase
-      .from("leads")
-      .update({ notes })
-      .eq("id", id);
+    await supabase.from("leads").update({ notes }).eq("id", id);
   }
 
   async function updateStatus(formData: FormData) {
     "use server";
-
     const status = formData.get("status") as string;
+
+    const supabase = createClient(
+      process.env.SUPABASE_URL!,
+      process.env.SUPABASE_SERVICE_ROLE_KEY!
+    );
+
+    await supabase.from("leads").update({ status }).eq("id", id);
+  }
+
+  async function updateVerification(formData: FormData) {
+    "use server";
+    const verification_status = formData.get("verification_status") as string;
 
     const supabase = createClient(
       process.env.SUPABASE_URL!,
@@ -69,7 +76,7 @@ export default async function LeadDetailPage({
 
     await supabase
       .from("leads")
-      .update({ status })
+      .update({ verification_status })
       .eq("id", id);
   }
 
@@ -99,6 +106,22 @@ export default async function LeadDetailPage({
           <InfoRow label="City" value={lead.city || "-"} />
           <InfoRow label="Status" value={lead.status} />
 
+          {/* Verification Display */}
+          <div className="flex justify-between border-b border-slate-800 pb-2">
+            <span className="text-slate-400">Verification</span>
+            <span
+              className={`font-medium capitalize ${
+                lead.verification_status === "approved"
+                  ? "text-emerald-400"
+                  : lead.verification_status === "rejected"
+                  ? "text-red-400"
+                  : "text-yellow-400"
+              }`}
+            >
+              {lead.verification_status || "pending"}
+            </span>
+          </div>
+
           {matchedLead && (
             <InfoRow
               label="Matched With"
@@ -106,6 +129,7 @@ export default async function LeadDetailPage({
             />
           )}
 
+          {/* Status Update */}
           <form action={updateStatus} className="mt-6 flex gap-3">
             <select
               name="status"
@@ -124,6 +148,26 @@ export default async function LeadDetailPage({
               className="bg-emerald-600 hover:bg-emerald-700 px-4 py-2 rounded"
             >
               Update Status
+            </button>
+          </form>
+
+          {/* Verification Update */}
+          <form action={updateVerification} className="mt-4 flex gap-3">
+            <select
+              name="verification_status"
+              defaultValue={lead.verification_status || "pending"}
+              className="bg-slate-800 border border-slate-700 px-3 py-2 rounded"
+            >
+              <option value="pending">Pending</option>
+              <option value="approved">Approved</option>
+              <option value="rejected">Rejected</option>
+            </select>
+
+            <button
+              type="submit"
+              className="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded"
+            >
+              Update Verification
             </button>
           </form>
         </div>
@@ -172,4 +216,3 @@ function InfoRow({
     </div>
   );
 }
-
