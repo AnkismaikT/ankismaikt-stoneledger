@@ -4,15 +4,21 @@ import type { NextRequest } from "next/server";
 export function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
-  // Allow landing and static files
+  // Allow specific routes
   if (
     pathname.startsWith("/landing") ||
+    pathname.startsWith("/admin") ||
+    pathname.startsWith("/api") ||
     pathname.startsWith("/_next") ||
     pathname.startsWith("/favicon")
   ) {
     return NextResponse.next();
   }
 
-  // Redirect everything else to /landing
+  // Redirect everything else to landing
   return NextResponse.redirect(new URL("/landing", request.url));
 }
+
+export const config = {
+  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"],
+};
